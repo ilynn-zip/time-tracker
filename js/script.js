@@ -1,0 +1,404 @@
+(function () {
+    'use strict';
+
+    const $ = id => document.getElementById(id);
+    const el = {
+        modes: document.querySelectorAll('.mode'),
+        task: $('task'),
+        clockMain: $('clockMain'),
+        clockCs: $('clockCs'),
+        progress: $('progress'), progressFill: $('progressFill'),
+        setup: $('setup'), presets: $('presets'),
+        inH: $('inH'), inMin: $('inMin'), inSec: $('inSec'),
+        btnStart: $('btnStart'), btnReset: $('btnReset'), btnSave: $('btnSave'),
+        list: $('list'), empty: $('empty'), total: $('total'), btnClear: $('btnClear'),
+        toast: $('toast'), today: $('today')
+    };
+
+    const LS_STATE = 'tick.state.v16';
+    const LS_HIST = 'tick.history.v16';
+
+    let mode = 'stopwatch';
+    let running = false;
+    let elapsed = 0;
+    let startTs = 0;
+    let duration = 25 * 60 * 1000;
+    let rafId = null;
+    let lastTitleSec = -1;
+    let lastAlmost = false;
+    let history = [];
+    let audioCtx = null;
+
+    const pad = n => String(n).padStart(2, '0');
+
+    function splitMs(ms) {
+        ms = Math.max(0, ms);
+        return {
+            h: Math.floor(ms / 3600000),
+            m: Math.floor(ms / 60000) % 60,
+            s: Math.floor(ms / 1000) % 60,
+            cs: Math.floor(ms / 10) % 100
+        };
+    }
+    function formatShort(ms) {
+        const total = Math.round(ms / 1000);
+        const h = Math.floor(total / 3600);
+        const m = Math.floor(total / 60) % 60;
+        const s = total % 60;
+        if (h) return h + 'h ' + m + 'm';
+        if (m) return m + 'm ' + s + 's';
+        return s + 's';
+    }
+    const currentMs = () => elapsed + (running ? Math.max(0, Date.now() - startTs) : 0);
+
+    let toastTimer = null;
+    function toast(msg) {
+        el.toast.textContent = msg;
+        el.toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.toast.classList.remove('show'), 2000);
+    }
+
+    function saveState() {
+        try {
+            localStorage.setItem(LS_STATE, JSON.stringify({
+                mode, running, elapsed, startTs, duration, task: el.task.value
+            }));
+        } catch (e) { }
+    }
+    function loadState() {
+        try {
+            const s = JSON.parse(localStorage.getItem(LS_STATE) || 'null');
+            if (s) {
+                mode = s.mode === 'timer' ? 'timer' : 'stopwatch';
+                elapsed = Number(s.elapsed) || 0;
+                duration = (Number(s.duration) > 0) ? Number(s.duration) : 25 * 60 * 1000;
+                startTs = Number(s.startTs) || 0;
+                running = !!s.running && startTs > 0 && startTs <= Date.now() + 2000;
+                el.task.value = s.task || '';
+            }
+            const h = JSON.parse(localStorage.getItem(LS_HIST) || '[]');
+            if (Array.isArray(h)) history = h.filter(x => x && typeof x.ms === 'number');
+        } catch (e) { }
+    }
+    function saveHistory() {
+        try { localStorage.setItem(LS_HIST, JSON.stringify(history)); } catch (e) { }
+    }
+
+    function render() {
+        const total = currentMs();
+        const shown = mode === 'timer' ? Math.max(0, duration - total) : total;
+        const t = splitMs(shown);
+
+        el.clockMain.textContent = pad(t.h) + ':' + pad(t.m) + ':' + pad(t.s);
+        el.clockCs.textContent = '.' + pad(t.cs);
+
+        if (mode === 'timer') {
+            el.progress.classList.add('show');
+            const p = duration > 0 ? Math.min(1, total / duration) : 0;
+            el.progressFill.style.width = (p * 100).toFixed(2) + '%';
+
+            const remaining = duration - total;
+            const almost = running && remaining > 0 && remaining <= Math.min(60000, duration * 0.1);
+            if (almost !== lastAlmost) {
+                lastAlmost = almost;
+                document.body.classList.toggle('almost-up', almost);
+            }
+        } else {
+            el.progress.classList.remove('show');
+            if (lastAlmost) {
+                lastAlmost = false;
+                document.body.classList.remove('almost-up');
+            }
+        }
+
+        const key = Math.floor(shown / 1000);
+        if (key !== lastTitleSec) {
+            lastTitleSec = key;
+            const name = el.task.value.trim();
+            document.title = (running ? '▶ ' : '') + pad(t.h) + ':' + pad(t.m) + ':' + pad(t.s) +
+                (name ? ' · ' + name : '') + ' — Time Tracker';
+        }
+    }
+
+    function updateButtons() {
+        el.btnStart.textContent = running ? 'Pause' : 'Start';
+        el.btnStart.classList.toggle('running', running);
+        document.body.classList.toggle('running', running);
+        el.inH.disabled = el.inMin.disabled = el.inSec.disabled = running;
+        el.presets.querySelectorAll('button').forEach(b => b.disabled = running);
+        lastTitleSec = -1;
+    }
+
+    function applyMode(m) {
+        document.body.dataset.mode = m;
+        el.modes.forEach(t => t.classList.toggle('active', t.dataset.mode === m));
+        el.setup.classList.toggle('show', m === 'timer');
+        el.presets.classList.toggle('show', m === 'timer');
+        el.progress.classList.toggle('show', m === 'timer');
+        document.body.classList.remove('almost-up');
+        lastAlmost = false;
+    }
+
+    function loop() {
+        rafId = null;
+        render();
+        if (running) {
+            if (mode === 'timer' && currentMs() >= duration) { finishTimer(); return; }
+            rafId = requestAnimationFrame(loop);
+        }
+    }
+    function startLoop() { if (rafId === null) rafId = requestAnimationFrame(loop); }
+    function stopLoop() { if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; } }
+
+    function start() {
+        if (running) return;
+        if (mode === 'timer') {
+            if (elapsed >= duration) elapsed = 0;
+            if (duration <= 0) { toast('Duration must be above zero'); return; }
+        }
+        unlockAudio();
+        running = true;
+        startTs = Date.now();
+        updateButtons();
+        startLoop();
+        saveState();
+    }
+    function pause() {
+        if (!running) return;
+        elapsed = currentMs();
+        running = false;
+        stopLoop();
+        render();
+        updateButtons();
+        saveState();
+    }
+    function toggle() { running ? pause() : start(); }
+    function reset() {
+        running = false;
+        elapsed = 0;
+        stopLoop();
+        document.body.classList.remove('almost-up');
+        lastAlmost = false;
+        render();
+        updateButtons();
+        saveState();
+    }
+    function finishTimer() {
+        running = false;
+        elapsed = duration;
+        stopLoop();
+        render();
+        updateButtons();
+        saveState();
+        beep();
+        document.title = '⏰ Time is up!';
+        lastTitleSec = -1;
+        if (navigator.vibrate) navigator.vibrate([220, 100, 220]);
+        toast('Time is up');
+    }
+
+    function unlockAudio() {
+        if (!audioCtx) {
+            try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    }
+    function beep() {
+        if (!audioCtx) return;
+        try {
+            let t = audioCtx.currentTime;
+            for (let i = 0; i < 3; i++) {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.type = 'sine';
+                osc.frequency.value = i === 2 ? 1180 : 880;
+                gain.gain.setValueAtTime(0.0001, t);
+                gain.gain.exponentialRampToValueAtTime(0.22, t + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+                osc.start(t); osc.stop(t + 0.4);
+                t += 0.5;
+            }
+        } catch (e) { }
+    }
+
+    function renderHistory() {
+        el.list.innerHTML = '';
+        el.empty.style.display = history.length ? 'none' : 'block';
+
+        const totalAll = history.reduce((a, b) => a + b.ms, 0);
+        el.total.textContent = history.length ? 'Σ ' + formatShort(totalAll) : '';
+
+        history.forEach(item => {
+            const isTimer = item.mode === 'timer';
+            const li = document.createElement('li');
+            li.className = 'log-item';
+            li.setAttribute('data-mode', isTimer ? 'timer' : 'stopwatch');
+
+            const dot = document.createElement('span');
+            dot.className = 'log-dot';
+
+            const body = document.createElement('div');
+            body.className = 'log-body';
+
+            const name = document.createElement('div');
+            name.className = 'log-name';
+            name.textContent = item.name || 'Untitled';
+
+            const meta = document.createElement('div');
+            meta.className = 'log-meta';
+            meta.textContent = (isTimer ? 'Timer' : 'Stopwatch') + ' · ' +
+                new Date(item.ts).toLocaleString('en-US', {
+                    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                });
+
+            body.append(name, meta);
+
+            const time = document.createElement('span');
+            time.className = 'log-time';
+            time.textContent = formatShort(item.ms);
+
+            const del = document.createElement('button');
+            del.className = 'log-remove';
+            del.type = 'button';
+            del.setAttribute('aria-label', 'Delete');
+            del.textContent = '×';
+            del.addEventListener('click', () => {
+                history = history.filter(x => x.id !== item.id);
+                saveHistory();
+                renderHistory();
+            });
+
+            li.append(dot, body, time, del);
+            el.list.appendChild(li);
+        });
+    }
+
+    function saveSession() {
+        const ms = mode === 'timer' ? Math.min(currentMs(), duration) : currentMs();
+        if (ms < 500) { toast('Too short to save'); return; }
+
+        history.unshift({
+            id: Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+            name: el.task.value.trim(),
+            ms: Math.round(ms),
+            ts: Date.now(),
+            mode: mode
+        });
+        saveHistory();
+        renderHistory();
+        reset();
+        el.task.focus();
+        toast('Saved · ' + formatShort(ms));
+    }
+
+    function readTimerInputs() {
+        const h = Math.max(0, Math.min(99, parseInt(el.inH.value, 10) || 0));
+        const m = Math.max(0, Math.min(59, parseInt(el.inMin.value, 10) || 0));
+        const s = Math.max(0, Math.min(59, parseInt(el.inSec.value, 10) || 0));
+        duration = (h * 3600 + m * 60 + s) * 1000;
+    }
+    function syncTimerInputs() {
+        el.inH.value = Math.floor(duration / 3600000);
+        el.inMin.value = Math.floor(duration / 60000) % 60;
+        el.inSec.value = Math.floor(duration / 1000) % 60;
+    }
+    function setPreset(seconds) {
+        if (running) return;
+        duration = seconds * 1000;
+        elapsed = 0;
+        syncTimerInputs();
+        render();
+        updateButtons();
+        saveState();
+    }
+    function setMode(next) {
+        if (next === mode) return;
+        running = false;
+        stopLoop();
+        mode = next;
+        elapsed = 0;
+        applyMode(mode);
+        if (mode === 'timer') syncTimerInputs();
+        render();
+        updateButtons();
+        saveState();
+    }
+
+    el.modes.forEach(t => t.addEventListener('click', () => setMode(t.dataset.mode)));
+    el.btnStart.addEventListener('click', toggle);
+    el.btnReset.addEventListener('click', reset);
+    el.btnSave.addEventListener('click', saveSession);
+
+    el.btnClear.addEventListener('click', () => {
+        if (!history.length) return;
+        if (confirm('Clear the entire log?')) {
+            history = [];
+            saveHistory();
+            renderHistory();
+        }
+    });
+
+    el.task.addEventListener('input', saveState);
+
+    [el.inH, el.inMin, el.inSec].forEach(inp => {
+        inp.addEventListener('input', () => {
+            if (running) return;
+            readTimerInputs();
+            elapsed = 0;
+            render();
+            updateButtons();
+            saveState();
+        });
+        inp.addEventListener('blur', () => {
+            if (mode !== 'timer' || running) return;
+            readTimerInputs();
+            syncTimerInputs();
+        });
+    });
+
+    el.presets.addEventListener('click', e => {
+        const btn = e.target.closest('button[data-sec]');
+        if (!btn) return;
+        setPreset(parseInt(btn.dataset.sec, 10));
+    });
+
+    document.addEventListener('keydown', e => {
+        const tag = (e.target.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea') {
+            if (e.key === 'Enter') e.target.blur();
+            return;
+        }
+        if (e.code === 'Space') { e.preventDefault(); toggle(); return; }
+        const k = e.key.toLowerCase();
+        if (k === 'r') { e.preventDefault(); reset(); }
+        if (k === 's') { e.preventDefault(); saveSession(); }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) { render(); if (running && rafId === null) startLoop(); }
+    });
+
+    function init() {
+        const d = new Date();
+        el.today.textContent =
+            d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() + ' · ' +
+            d.getDate() + ' ' +
+            d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+
+        loadState();
+        applyMode(mode);
+        syncTimerInputs();
+        renderHistory();
+        render();
+        updateButtons();
+
+        if (running) {
+            if (mode === 'timer' && currentMs() >= duration) finishTimer();
+            else startLoop();
+        }
+    }
+
+    init();
+})();
