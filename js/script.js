@@ -24,6 +24,10 @@
     let elapsed = 0;
     let startTs = 0;
     let duration = 25 * 60 * 1000;
+    let saved = {
+        stopwatch: { running: false, elapsed: 0, startTs: 0 },
+        timer: { running: false, elapsed: 0, startTs: 0 }
+    };
     let rafId = null;
     let lastTitleSec = -1;
     let lastAlmost = false;
@@ -62,9 +66,10 @@
     }
 
     function saveState() {
+        saved[mode] = { running, elapsed, startTs };
         try {
             localStorage.setItem(LS_STATE, JSON.stringify({
-                mode, running, elapsed, startTs, duration, task: el.task.value
+                mode, saved, duration, task: el.task.value
             }));
         } catch (e) { }
     }
@@ -73,11 +78,31 @@
             const s = JSON.parse(localStorage.getItem(LS_STATE) || 'null');
             if (s) {
                 mode = s.mode === 'timer' ? 'timer' : 'stopwatch';
-                elapsed = Number(s.elapsed) || 0;
                 duration = (Number(s.duration) > 0) ? Number(s.duration) : 25 * 60 * 1000;
-                startTs = Number(s.startTs) || 0;
-                running = !!s.running && startTs > 0 && startTs <= Date.now() + 2000;
                 el.task.value = s.task || '';
+
+                if (s.saved) {
+                    if (s.saved.stopwatch) Object.assign(saved.stopwatch, s.saved.stopwatch);
+                    if (s.saved.timer) Object.assign(saved.timer, s.saved.timer);
+                } else {
+                    // migrate from old flat format
+                    saved[mode] = {
+                        running: !!s.running && s.startTs > 0 && s.startTs <= Date.now() + 2000,
+                        elapsed: Number(s.elapsed) || 0,
+                        startTs: Number(s.startTs) || 0
+                    };
+                }
+
+                ['stopwatch', 'timer'].forEach(m => {
+                    const st = saved[m];
+                    if (st.running && (st.startTs <= 0 || st.startTs > Date.now() + 2000)) {
+                        st.running = false;
+                    }
+                });
+
+                running = saved[mode].running;
+                elapsed = saved[mode].elapsed;
+                startTs = saved[mode].startTs;
             }
             const h = JSON.parse(localStorage.getItem(LS_HIST) || '[]');
             if (Array.isArray(h)) history = h.filter(x => x && typeof x.ms === 'number');
@@ -131,6 +156,14 @@
         el.setup.querySelectorAll('.step').forEach(b => b.disabled = running);
         el.presets.querySelectorAll('button').forEach(b => b.disabled = running);
         lastTitleSec = -1;
+        updateTabIndicators();
+    }
+
+    function updateTabIndicators() {
+        el.modes.forEach(tab => {
+            const m = tab.dataset.mode;
+            tab.classList.toggle('background-running', m !== mode && saved[m].running);
+        });
     }
 
     function applyMode(m) {
@@ -379,15 +412,23 @@
     }
     function setMode(next) {
         if (next === mode) return;
-        running = false;
-        stopLoop();
+
+        saved[mode] = { running, elapsed, startTs };
+
+        const s = saved[next];
+        running = s.running;
+        elapsed = s.elapsed;
+        startTs = s.startTs;
+
         mode = next;
-        elapsed = 0;
         applyMode(mode);
         if (mode === 'timer') syncTimerInputs();
+        document.body.classList.remove('almost-up');
+        lastAlmost = false;
         render();
         updateButtons();
         saveState();
+        if (running) startLoop();
     }
 
     el.modes.forEach(t => t.addEventListener('click', () => setMode(t.dataset.mode)));
@@ -478,10 +519,26 @@
 
     init();
 
+    // Background heartbeat — keeps the other mode alive, works when tab is hidden
     setInterval(() => {
-        if (!running) return;
-        render();
-        if (mode === 'timer' && currentMs() >= duration) finishTimer();
-    }, 500);
+        // Background timer finishes while the stopwatch tab is active
+        if (mode !== 'timer' && saved.timer.running) {
+            const t = saved.timer;
+            const tMs = t.elapsed + (Date.now() - t.startTs);
+            if (tMs >= duration) {
+                t.running = false;
+                t.elapsed = duration;
+                beep();
+                toast('Timer finished');
+                saveState();
+                updateTabIndicators();
+            }
+        }
 
+        // Keep the visible UI ticking even if the browser tab is in the background
+        if (document.hidden && running) {
+            render();
+            if (mode === 'timer' && currentMs() >= duration) finishTimer();
+        }
+    }, 500);
 })();
