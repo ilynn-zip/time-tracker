@@ -12,6 +12,7 @@
         inH: $('inH'), inMin: $('inMin'), inSec: $('inSec'),
         btnStart: $('btnStart'), btnReset: $('btnReset'), btnSave: $('btnSave'),
         list: $('list'), empty: $('empty'), total: $('total'), btnClear: $('btnClear'),
+        btnToggle: $('btnToggle'),
         toast: $('toast'), today: $('today')
     };
 
@@ -28,6 +29,7 @@
     let lastAlmost = false;
     let history = [];
     let audioCtx = null;
+    let historyExpanded = false;
 
     const pad = n => String(n).padStart(2, '0');
 
@@ -126,6 +128,7 @@
         el.btnStart.classList.toggle('running', running);
         document.body.classList.toggle('running', running);
         el.inH.disabled = el.inMin.disabled = el.inSec.disabled = running;
+        el.setup.querySelectorAll('.step').forEach(b => b.disabled = running);
         el.presets.querySelectorAll('button').forEach(b => b.disabled = running);
         lastTitleSec = -1;
     }
@@ -134,8 +137,6 @@
         document.body.dataset.mode = m;
         el.modes.forEach(t => t.classList.toggle('active', t.dataset.mode === m));
         el.setup.classList.toggle('show', m === 'timer');
-        el.presets.classList.toggle('show', m === 'timer');
-        el.progress.classList.toggle('show', m === 'timer');
         document.body.classList.remove('almost-up');
         lastAlmost = false;
     }
@@ -230,7 +231,10 @@
         const totalAll = history.reduce((a, b) => a + b.ms, 0);
         el.total.textContent = history.length ? 'Σ ' + formatShort(totalAll) : '';
 
-        history.forEach(item => {
+        const visible = historyExpanded ? history : history.slice(0, 1);
+        const hiddenCount = history.length - visible.length;
+
+        visible.forEach(item => {
             const isTimer = item.mode === 'timer';
             const li = document.createElement('li');
             li.className = 'log-item';
@@ -273,8 +277,16 @@
             li.append(dot, body, time, del);
             el.list.appendChild(li);
         });
-    }
 
+        if (history.length > 1) {
+            el.btnToggle.classList.add('show');
+            el.btnToggle.textContent = historyExpanded
+                ? 'Show less'
+                : 'Show ' + hiddenCount + ' more';
+        } else {
+            el.btnToggle.classList.remove('show');
+        }
+    }
     function saveSession() {
         const ms = mode === 'timer' ? Math.min(currentMs(), duration) : currentMs();
         if (ms < 500) { toast('Too short to save'); return; }
@@ -300,9 +312,61 @@
         duration = (h * 3600 + m * 60 + s) * 1000;
     }
     function syncTimerInputs() {
-        el.inH.value = Math.floor(duration / 3600000);
-        el.inMin.value = Math.floor(duration / 60000) % 60;
-        el.inSec.value = Math.floor(duration / 1000) % 60;
+        el.inH.value = pad(Math.floor(duration / 3600000));
+        el.inMin.value = pad(Math.floor(duration / 60000) % 60);
+        el.inSec.value = pad(Math.floor(duration / 1000) % 60);
+        updateActivePreset();
+    }
+
+    function stepUnit(unit, delta) {
+        if (running) return;
+        readTimerInputs();
+        const totalSec = Math.round(duration / 1000);
+        const stepSec = unit === 'h' ? 3600 : unit === 'm' ? 60 : 1;
+        const maxSec = 99 * 3600 + 59 * 60 + 59;
+        const nextSec = Math.max(0, Math.min(maxSec, totalSec + delta * stepSec));
+        duration = nextSec * 1000;
+        syncTimerInputs();
+        elapsed = 0;
+        render();
+        updateButtons();
+        saveState();
+    }
+
+    function bindStep(btn) {
+        const unit = btn.dataset.unit;
+        const delta = parseInt(btn.dataset.step, 10);
+        let holdTimer = null;
+        let repeatTimer = null;
+
+        const fire = () => stepUnit(unit, delta);
+
+        const start = (e) => {
+            e.preventDefault();
+            fire();
+            holdTimer = setTimeout(() => {
+                repeatTimer = setInterval(fire, 70);
+            }, 400);
+        };
+        const stop = () => {
+            clearTimeout(holdTimer);
+            clearInterval(repeatTimer);
+            holdTimer = null;
+            repeatTimer = null;
+        };
+
+        btn.addEventListener('pointerdown', start);
+        btn.addEventListener('pointerup', stop);
+        btn.addEventListener('pointerleave', stop);
+        btn.addEventListener('pointercancel', stop);
+        btn.addEventListener('contextmenu', e => e.preventDefault());
+    }
+
+    function updateActivePreset() {
+        el.presets.querySelectorAll('button').forEach(b => {
+            const sec = parseInt(b.dataset.sec, 10);
+            b.classList.toggle('active', sec * 1000 === duration);
+        });
     }
     function setPreset(seconds) {
         if (running) return;
@@ -331,6 +395,11 @@
     el.btnReset.addEventListener('click', reset);
     el.btnSave.addEventListener('click', saveSession);
 
+    el.btnToggle.addEventListener('click', () => {
+        historyExpanded = !historyExpanded;
+        renderHistory();
+    });
+
     el.btnClear.addEventListener('click', () => {
         if (!history.length) return;
         if (confirm('Clear the entire log?')) {
@@ -345,7 +414,9 @@
     [el.inH, el.inMin, el.inSec].forEach(inp => {
         inp.addEventListener('input', () => {
             if (running) return;
+            inp.value = inp.value.replace(/\D/g, '').slice(0, 2);
             readTimerInputs();
+            updateActivePreset();
             elapsed = 0;
             render();
             updateButtons();
@@ -356,7 +427,12 @@
             readTimerInputs();
             syncTimerInputs();
         });
+        inp.addEventListener('keydown', e => {
+            if (e.key === 'Enter') inp.blur();
+        });
     });
+
+    el.setup.querySelectorAll('.step').forEach(bindStep);
 
     el.presets.addEventListener('click', e => {
         const btn = e.target.closest('button[data-sec]');
@@ -401,4 +477,11 @@
     }
 
     init();
+
+    setInterval(() => {
+        if (!running) return;
+        render();
+        if (mode === 'timer' && currentMs() >= duration) finishTimer();
+    }, 500);
+
 })();

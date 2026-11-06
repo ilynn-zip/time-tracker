@@ -25,8 +25,7 @@
             <span class="today" id="today"></span>
         </header>
 
-        <input id="task" class="task" type="text" placeholder="Working on?" maxlength="80"
-            autocomplete="off">
+        <input id="task" class="task" type="text" placeholder="Working on?" maxlength="80" autocomplete="off">
 
         <div class="clock" id="clock">
             <span class="clock-main" id="clockMain">00:00:00</span><span class="clock-cs" id="clockCs">.00</span>
@@ -36,28 +35,41 @@
             <div class="progress-fill" id="progressFill"></div>
         </div>
 
-        <div class="setup" id="setup">
-            <div class="field"><input id="inH" type="number" min="0" max="99" value="0"
-                    inputmode="numeric"><label>Hrs</label></div>
-            <div class="field"><input id="inMin" type="number" min="0" max="59" value="25"
-                    inputmode="numeric"><label>Min</label></div>
-            <div class="field"><input id="inSec" type="number" min="0" max="59" value="0"
-                    inputmode="numeric"><label>Sec</label></div>
-        </div>
+        <div class="timer-setup" id="setup">
+            <div class="time-inputs">
+              <div class="unit-group">
+                <button type="button" class="step" data-step="-1" data-unit="h" tabindex="-1" aria-label="Decrease hours">−</button>
+                <input id="inH" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="Hours">
+                <button type="button" class="step" data-step="1" data-unit="h" tabindex="-1" aria-label="Increase hours">+</button>
+                <span class="unit-label">h</span>
+              </div>
+              <div class="unit-group">
+                <button type="button" class="step" data-step="-1" data-unit="m" tabindex="-1" aria-label="Decrease minutes">−</button>
+                <input id="inMin" type="text" inputmode="numeric" value="25" maxlength="2" aria-label="Minutes">
+                <button type="button" class="step" data-step="1" data-unit="m" tabindex="-1" aria-label="Increase minutes">+</button>
+                <span class="unit-label">m</span>
+              </div>
+              <div class="unit-group">
+                <button type="button" class="step" data-step="-1" data-unit="s" tabindex="-1" aria-label="Decrease seconds">−</button>
+                <input id="inSec" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="Seconds">
+                <button type="button" class="step" data-step="1" data-unit="s" tabindex="-1" aria-label="Increase seconds">+</button>
+                <span class="unit-label">s</span>
+              </div>
+            </div>
+            <div class="preset-chips" id="presets">
+              <button type="button" data-sec="300">5m</button>
+              <button type="button" data-sec="900">15m</button>
+              <button type="button" data-sec="1500">25m</button>
+              <button type="button" data-sec="2700">45m</button>
+              <button type="button" data-sec="3600">1h</button>
+            </div>
+          </div>
 
-        <div class="presets" id="presets">
-            <button type="button" data-sec="300">5m</button>
-            <button type="button" data-sec="900">15m</button>
-            <button type="button" data-sec="1500">25m</button>
-            <button type="button" data-sec="2700">45m</button>
-            <button type="button" data-sec="3600">1h</button>
-        </div>
-
-        <div class="buttons">
-            <button id="btnStart" class="btn primary">Start</button>
+          <div class="buttons">
             <button id="btnReset" class="btn">Reset</button>
+            <button id="btnStart" class="btn primary">Start</button>
             <button id="btnSave" class="btn">Save</button>
-        </div>
+          </div>
 
         <p class="hint"><kbd>Space</kbd> pause · <kbd>R</kbd> reset · <kbd>S</kbd> save</p>
 
@@ -68,6 +80,7 @@
                 <button class="link" id="btnClear">Clear</button>
             </div>
             <ul class="log-list" id="list"></ul>
+            <button class="log-toggle" id="btnToggle" type="button"></button>
             <p class="log-empty" id="empty">No sessions yet</p>
         </section>
 
