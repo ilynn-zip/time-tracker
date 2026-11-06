@@ -252,7 +252,7 @@
                 gain.gain.exponentialRampToValueAtTime(0.22, t + 0.01);
                 gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
                 osc.start(t); osc.stop(t + 0.4);
-                t += 0.5;
+                t += 0.1;
             }
         } catch (e) { }
     }
