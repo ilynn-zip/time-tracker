@@ -2,94 +2,105 @@
 <html lang="en">
 
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#101012">
-    <title>Time Tracker</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23101012'/><circle cx='50' cy='54' r='26' fill='none' stroke='%23e5a772' stroke-width='6'/><line x1='50' y1='54' x2='50' y2='38' stroke='%23e5a772' stroke-width='6' stroke-linecap='round'/><line x1='50' y1='54' x2='62' y2='58' stroke='%23e5a772' stroke-width='6' stroke-linecap='round'/></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101012">
+  <title>Time Tracker</title>
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23101012'/><circle cx='50' cy='54' r='26' fill='none' stroke='%23e5a772' stroke-width='6'/><line x1='50' y1='54' x2='50' y2='38' stroke='%23e5a772' stroke-width='6' stroke-linecap='round'/><line x1='50' y1='54' x2='62' y2='58' stroke='%23e5a772' stroke-width='6' stroke-linecap='round'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 
 <body data-mode="stopwatch">
-    <div class="app">
+  <div class="app">
 
-        <header class="top">
-            <nav class="modes" id="modes">
-                <button class="mode active" data-mode="stopwatch">Stopwatch</button>
-                <button class="mode" data-mode="timer">Timer</button>
-            </nav>
-            <span class="today" id="today"></span>
-        </header>
+    <header class="top">
+      <nav class="modes" id="modes">
+        <button class="mode active" data-mode="stopwatch">Stopwatch</button>
+        <button class="mode" data-mode="timer">Timer</button>
+      </nav>
+      <span class="today" id="today"></span>
+    </header>
 
-        <input id="task" class="task" type="text" placeholder="Working on?" maxlength="80" autocomplete="off">
+    <input id="task" class="task" type="text" placeholder="Working on..." maxlength="80" autocomplete="off">
 
-        <div class="clock" id="clock">
-            <span class="clock-main" id="clockMain">00:00:00</span><span class="clock-cs" id="clockCs">.00</span>
-        </div>
-
-        <div class="progress" id="progress">
-            <div class="progress-fill" id="progressFill"></div>
-        </div>
-
-        <div class="timer-setup" id="setup">
-            <div class="time-inputs">
-              <div class="unit-group">
-                <button type="button" class="step" data-step="-1" data-unit="h" tabindex="-1" aria-label="Decrease hours">−</button>
-                <input id="inH" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="Hours">
-                <button type="button" class="step" data-step="1" data-unit="h" tabindex="-1" aria-label="Increase hours">+</button>
-                <span class="unit-label">h</span>
-              </div>
-              <div class="unit-group">
-                <button type="button" class="step" data-step="-1" data-unit="m" tabindex="-1" aria-label="Decrease minutes">−</button>
-                <input id="inMin" type="text" inputmode="numeric" value="25" maxlength="2" aria-label="Minutes">
-                <button type="button" class="step" data-step="1" data-unit="m" tabindex="-1" aria-label="Increase minutes">+</button>
-                <span class="unit-label">m</span>
-              </div>
-              <div class="unit-group">
-                <button type="button" class="step" data-step="-1" data-unit="s" tabindex="-1" aria-label="Decrease seconds">−</button>
-                <input id="inSec" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="Seconds">
-                <button type="button" class="step" data-step="1" data-unit="s" tabindex="-1" aria-label="Increase seconds">+</button>
-                <span class="unit-label">s</span>
-              </div>
-            </div>
-            <div class="preset-chips" id="presets">
-              <button type="button" data-sec="300">5m</button>
-              <button type="button" data-sec="900">15m</button>
-              <button type="button" data-sec="1500">25m</button>
-              <button type="button" data-sec="2700">45m</button>
-              <button type="button" data-sec="3600">1h</button>
-            </div>
-          </div>
-
-          <div class="buttons">
-            <button id="btnReset" class="btn">Reset</button>
-            <button id="btnStart" class="btn primary">Start</button>
-            <button id="btnSave" class="btn">Save</button>
-          </div>
-
-        <p class="hint"><kbd>Space</kbd> pause · <kbd>R</kbd> reset · <kbd>S</kbd> save</p>
-
-        <section class="log">
-            <div class="log-head">
-                <span class="log-title">Log</span>
-                <span class="log-total" id="total"></span>
-                <button class="link" id="btnClear">Clear</button>
-            </div>
-            <ul class="log-list" id="list"></ul>
-            <button class="log-toggle" id="btnToggle" type="button"></button>
-            <p class="log-empty" id="empty">No sessions yet</p>
-        </section>
-
+    <div class="clock" id="clock">
+      <span class="clock-main" id="clockMain">00:00:00</span><span class="clock-cs" id="clockCs">.00</span>
     </div>
 
-    <div class="toast" id="toast"></div>
+    <div class="progress" id="progress">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
 
-    <script src="js/script.js"></script>
+    <div class="timer-setup" id="setup">
+      <div class="time-inputs">
+        <div class="unit-group">
+          <button type="button" class="step" data-step="-1" data-unit="h" tabindex="-1"
+            aria-label="Decrease hours">−</button>
+          <input id="inH" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="Hours">
+          <button type="button" class="step" data-step="1" data-unit="h" tabindex="-1"
+            aria-label="Increase hours">+</button>
+          <span class="unit-label">h</span>
+        </div>
+        <div class="unit-group">
+          <button type="button" class="step" data-step="-1" data-unit="m" tabindex="-1"
+            aria-label="Decrease minutes">−</button>
+          <input id="inMin" type="text" inputmode="numeric" value="25" maxlength="2" aria-label="Minutes">
+          <button type="button" class="step" data-step="1" data-unit="m" tabindex="-1"
+            aria-label="Increase minutes">+</button>
+          <span class="unit-label">m</span>
+        </div>
+        <div class="unit-group">
+          <button type="button" class="step" data-step="-1" data-unit="s" tabindex="-1"
+            aria-label="Decrease seconds">−</button>
+          <input id="inSec" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="Seconds">
+          <button type="button" class="step" data-step="1" data-unit="s" tabindex="-1"
+            aria-label="Increase seconds">+</button>
+          <span class="unit-label">s</span>
+        </div>
+      </div>
+      <div class="preset-chips" id="presets">
+        <button type="button" data-sec="300">5m</button>
+        <button type="button" data-sec="900">15m</button>
+        <button type="button" data-sec="1500">25m</button>
+        <button type="button" data-sec="2700">45m</button>
+        <button type="button" data-sec="3600">1h</button>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button id="btnReset" class="btn">Reset</button>
+      <button id="btnStart" class="btn primary">Start</button>
+      <button id="btnSave" class="btn">Save</button>
+    </div>
+
+    <p class="hint"><kbd>Space</kbd> pause · <kbd>R</kbd> reset · <kbd>S</kbd> save</p>
+
+    <section class="log">
+      <div class="log-head">
+        <span class="log-title">Log</span>
+        <span class="log-total" id="total"></span>
+        <div class="log-actions">
+          <button class="filter-btn" id="btnFilter" type="button"></button>
+          <button class="link" id="btnClear">Clear</button>
+        </div>
+      </div>
+      <div class="log-filter-row" id="logFilter"></div>
+      <ul class="log-list" id="list"></ul>
+      <button class="log-toggle" id="btnToggle" type="button"></button>
+      <p class="log-empty" id="empty">No sessions yet</p>
+    </section>
+
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/script.js"></script>
 </body>
 
 </html>

@@ -13,6 +13,8 @@
         btnStart: $('btnStart'), btnReset: $('btnReset'), btnSave: $('btnSave'),
         list: $('list'), empty: $('empty'), total: $('total'), btnClear: $('btnClear'),
         btnToggle: $('btnToggle'),
+        btnFilter: $('btnFilter'),
+        logFilter: $('logFilter'),
         toast: $('toast'), today: $('today')
     };
 
@@ -34,6 +36,8 @@
     let history = [];
     let audioCtx = null;
     let historyExpanded = false;
+    let activeFilter = 'all';
+    let filterOpen = false;
 
     const pad = n => String(n).padStart(2, '0');
 
@@ -46,6 +50,25 @@
             cs: Math.floor(ms / 10) % 100
         };
     }
+
+    function getDateKey(ts) {
+        const d = new Date(ts);
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
+
+    function formatFilterLabel(key) {
+        if (key === 'all') return 'All';
+        const today = getDateKey(Date.now());
+        const yesterday = getDateKey(Date.now() - 86400000);
+        if (key === today) return 'Today';
+        if (key === yesterday) return 'Yesterday';
+        const [y, m, d] = key.split('-').map(Number);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const curYear = new Date().getFullYear();
+        return d + ' ' + months[m - 1] + (y !== curYear ? ' ' + String(y).slice(-2) : '');
+    }
+
+
     function formatShort(ms) {
         const total = Math.round(ms / 1000);
         const h = Math.floor(total / 3600);
@@ -162,7 +185,8 @@
     function updateTabIndicators() {
         el.modes.forEach(tab => {
             const m = tab.dataset.mode;
-            tab.classList.toggle('background-running', m !== mode && saved[m].running);
+            const isRunning = (m === mode) ? running : saved[m].running;
+            tab.classList.toggle('background-running', isRunning);
         });
     }
 
@@ -257,15 +281,101 @@
         } catch (e) { }
     }
 
+    function renderFilter() {
+        const seen = new Set();
+        const dates = [];
+        history.forEach(item => {
+            const k = getDateKey(item.ts);
+            if (!seen.has(k)) { seen.add(k); dates.push(k); }
+        });
+
+        if (dates.length <= 1) {
+            if (activeFilter !== 'all') activeFilter = 'all';
+            el.btnFilter.style.display = 'none';
+            el.btnFilter.classList.remove('open');
+            el.logFilter.classList.remove('open');
+            return;
+        }
+        el.btnFilter.style.display = '';
+
+        if (activeFilter !== 'all' && !seen.has(activeFilter)) {
+            activeFilter = 'all';
+        }
+
+        // Build button content
+        el.btnFilter.innerHTML = '';
+        const label = document.createElement('span');
+        label.textContent = formatFilterLabel(activeFilter);
+        el.btnFilter.appendChild(label);
+
+        const chev = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        chev.setAttribute('viewBox', '0 0 10 6');
+        chev.setAttribute('width', '8');
+        chev.setAttribute('height', '5');
+        chev.classList.add('filter-btn-chevron');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', 'M1 1l4 4 4-4');
+        path.setAttribute('stroke', 'currentColor');
+        path.setAttribute('stroke-width', '1.2');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-linejoin', 'round');
+        chev.appendChild(path);
+        el.btnFilter.appendChild(chev);
+
+        el.btnFilter.classList.toggle('has-filter', activeFilter !== 'all');
+
+        // Build chips row
+        el.logFilter.innerHTML = '';
+        const items = [{ key: 'all', label: 'All' }];
+        dates.forEach(k => items.push({ key: k, label: formatFilterLabel(k) }));
+
+        items.forEach(it => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'filter-chip' + (activeFilter === it.key ? ' active' : '');
+            b.textContent = it.label;
+            b.addEventListener('click', () => {
+                activeFilter = it.key;
+                closeFilter();
+                renderHistory();
+            });
+            el.logFilter.appendChild(b);
+        });
+    }
+
+    function openFilter() {
+        if (el.btnFilter.style.display === 'none') return;
+        el.logFilter.classList.add('open');
+        el.btnFilter.classList.add('open');
+    }
+
+    function closeFilter() {
+        el.logFilter.classList.remove('open');
+        el.btnFilter.classList.remove('open');
+    }
+
+    function toggleFilter() {
+        if (el.logFilter.classList.contains('open')) closeFilter();
+        else openFilter();
+    }
+
     function renderHistory() {
+        renderFilter();
+
         el.list.innerHTML = '';
-        el.empty.style.display = history.length ? 'none' : 'block';
 
-        const totalAll = history.reduce((a, b) => a + b.ms, 0);
-        el.total.textContent = history.length ? 'Σ ' + formatShort(totalAll) : '';
+        const filtered = activeFilter === 'all'
+            ? history
+            : history.filter(item => getDateKey(item.ts) === activeFilter);
 
-        const visible = historyExpanded ? history : history.slice(0, 1);
-        const hiddenCount = history.length - visible.length;
+        el.empty.style.display = filtered.length ? 'none' : 'block';
+
+        const totalAll = filtered.reduce((a, b) => a + b.ms, 0);
+        el.total.textContent = filtered.length ? 'Σ ' + formatShort(totalAll) : '';
+
+        const visible = historyExpanded ? filtered : filtered.slice(0, 1);
+        const hiddenCount = filtered.length - visible.length;
 
         visible.forEach(item => {
             const isTimer = item.mode === 'timer';
@@ -282,6 +392,8 @@
             const name = document.createElement('div');
             name.className = 'log-name';
             name.textContent = item.name || 'Untitled';
+            name.title = 'Click to edit';
+            name.addEventListener('click', () => startEditName(name, item));
 
             const meta = document.createElement('div');
             meta.className = 'log-meta';
@@ -311,7 +423,7 @@
             el.list.appendChild(li);
         });
 
-        if (history.length > 1) {
+        if (filtered.length > 1) {
             el.btnToggle.classList.add('show');
             el.btnToggle.textContent = historyExpanded
                 ? 'Show less'
@@ -320,6 +432,7 @@
             el.btnToggle.classList.remove('show');
         }
     }
+
     function saveSession() {
         const ms = mode === 'timer' ? Math.min(currentMs(), duration) : currentMs();
         if (ms < 500) { toast('Too short to save'); return; }
@@ -481,6 +594,27 @@
         setPreset(parseInt(btn.dataset.sec, 10));
     });
 
+    el.btnFilter.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFilter();
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!el.logFilter.classList.contains('open')) return;
+        if (el.logFilter.contains(e.target)) return;
+        if (el.btnFilter.contains(e.target)) return;
+        closeFilter();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (!el.logFilter.classList.contains('open')) return;
+        const tag = (e.target.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea') return;
+        closeFilter();
+    });
+
+
     document.addEventListener('keydown', e => {
         const tag = (e.target.tagName || '').toLowerCase();
         if (tag === 'input' || tag === 'textarea') {
@@ -519,9 +653,7 @@
 
     init();
 
-    // Background heartbeat — keeps the other mode alive, works when tab is hidden
     setInterval(() => {
-        // Background timer finishes while the stopwatch tab is active
         if (mode !== 'timer' && saved.timer.running) {
             const t = saved.timer;
             const tMs = t.elapsed + (Date.now() - t.startTs);
@@ -535,7 +667,6 @@
             }
         }
 
-        // Keep the visible UI ticking even if the browser tab is in the background
         if (document.hidden && running) {
             render();
             if (mode === 'timer' && currentMs() >= duration) finishTimer();
