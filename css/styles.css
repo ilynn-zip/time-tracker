@@ -163,20 +163,33 @@ body {
 }
 
 /* ---------- Task ---------- */
+.task-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    transition: border-color .2s;
+    margin-bottom: 48px;
+}
+
+.task-wrap:focus-within {
+    border-bottom-color: var(--border-2);
+}
+
 .task {
+    flex: 1;
+    min-width: 0;
     display: block;
-    width: 100%;
-    padding: 0 0 16px;
+    padding: 0;
     background: transparent;
     border: 0;
-    border-bottom: 1px solid var(--border);
     color: var(--text);
     font: inherit;
     font-size: 17px;
     font-weight: 400;
     letter-spacing: -0.015em;
-    transition: border-color .2s;
-    margin-bottom: 48px;
 }
 
 .task::placeholder {
@@ -185,7 +198,35 @@ body {
 
 .task:focus {
     outline: none;
-    border-bottom-color: var(--border-2);
+}
+
+.task-clear {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 50%;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s, color .15s, background .15s;
+}
+
+.task:not(:placeholder-shown)+.task-clear {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.task-clear:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
 }
 
 /* ---------- Clock ---------- */
@@ -418,6 +459,7 @@ body.running .clock-cs {
     grid-template-columns: 1fr 1.5fr 1fr;
     gap: 8px;
     margin-top: 8px;
+    margin-bottom: 56px;
 }
 
 .btn {
@@ -502,6 +544,25 @@ body.running .clock-cs {
     }
 }
 
+.btn-key {
+    position: absolute;
+    top: 5px;
+    right: 7px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5px;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    color: currentColor;
+    opacity: 0.4;
+    pointer-events: none;
+    text-transform: none;
+    line-height: 1;
+}
+
+.btn.primary .btn-key {
+    opacity: 0.55;
+}
+
 .hint {
     text-align: center;
     font-family: 'JetBrains Mono', monospace;
@@ -571,15 +632,34 @@ body.running .clock-cs {
 }
 
 .log-filter-row {
-    display: none;
-    flex-wrap: wrap;
-    gap: 1px;
-    padding: 8px 0 10px;
-    border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    border-bottom: 1px solid transparent;
+    transition:
+        grid-template-rows .34s cubic-bezier(.4, 0, .2, 1),
+        opacity .22s ease,
+        border-color .24s ease;
 }
 
 .log-filter-row.open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    border-bottom-color: var(--border);
+}
+
+.log-filter-inner {
+    min-height: 0;
+    overflow: hidden;
     display: flex;
+    flex-wrap: wrap;
+    gap: 1px;
+    padding: 0;
+    transition: padding .34s cubic-bezier(.4, 0, .2, 1);
+}
+
+.log-filter-row.open .log-filter-inner {
+    padding: 8px 0 10px;
 }
 
 .filter-btn {
@@ -859,6 +939,9 @@ body.running .clock-cs {
 
     .task {
         font-size: 16px;
+    }
+
+    .task-wrap {
         margin-bottom: 36px;
     }
 
@@ -900,6 +983,14 @@ body.running .clock-cs {
 
     .hint {
         margin-bottom: 44px;
+    }
+
+    .buttons {
+        margin-bottom: 44px;
+    }
+
+    .btn-key {
+        display: none;
     }
 
     .log {

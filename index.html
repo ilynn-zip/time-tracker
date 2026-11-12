@@ -27,7 +27,11 @@
       <span class="today" id="today"></span>
     </header>
 
-    <input id="task" class="task" type="text" placeholder="Working on..." maxlength="80" autocomplete="off">
+    <div class="task-wrap">
+      <input id="task" class="task" type="text" placeholder="Working on..." maxlength="80"
+        autocomplete="off">
+      <button class="task-clear" id="btnTaskClear" type="button" aria-label="Clear task name" tabindex="-1">×</button>
+    </div>
 
     <div class="clock" id="clock">
       <span class="clock-main" id="clockMain">00:00:00</span><span class="clock-cs" id="clockCs">.00</span>
@@ -74,12 +78,21 @@
     </div>
 
     <div class="buttons">
-      <button id="btnReset" class="btn">Reset</button>
-      <button id="btnStart" class="btn primary">Start</button>
-      <button id="btnSave" class="btn">Save</button>
+      <button id="btnReset" class="btn">
+        <span class="btn-label">Reset</span>
+        <span class="btn-key">R</span>
+      </button>
+      <button id="btnStart" class="btn primary">
+        <span class="btn-label">Start</span>
+        <span class="btn-key">Space</span>
+      </button>
+      <button id="btnSave" class="btn">
+        <span class="btn-label">Save</span>
+        <span class="btn-key">S</span>
+      </button>
     </div>
 
-    <p class="hint"><kbd>Space</kbd> pause · <kbd>R</kbd> reset · <kbd>S</kbd> save</p>
+    <!-- <p class="hint"><kbd>R</kbd> reset · <kbd>Space</kbd> start/pause · <kbd>S</kbd> save</p> -->
 
     <section class="log">
       <div class="log-head">
@@ -90,7 +103,9 @@
           <button class="link" id="btnClear">Clear</button>
         </div>
       </div>
-      <div class="log-filter-row" id="logFilter"></div>
+      <div class="log-filter-row" id="logFilterRow">
+        <div class="log-filter-inner" id="logFilter"></div>
+      </div>
       <ul class="log-list" id="list"></ul>
       <button class="log-toggle" id="btnToggle" type="button"></button>
       <p class="log-empty" id="empty">No sessions yet</p>

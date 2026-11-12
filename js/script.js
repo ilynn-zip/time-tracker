@@ -11,10 +11,12 @@
         setup: $('setup'), presets: $('presets'),
         inH: $('inH'), inMin: $('inMin'), inSec: $('inSec'),
         btnStart: $('btnStart'), btnReset: $('btnReset'), btnSave: $('btnSave'),
+        btnTaskClear: $('btnTaskClear'),
         list: $('list'), empty: $('empty'), total: $('total'), btnClear: $('btnClear'),
         btnToggle: $('btnToggle'),
         btnFilter: $('btnFilter'),
         logFilter: $('logFilter'),
+        logFilterRow: $('logFilterRow'),
         toast: $('toast'), today: $('today')
     };
 
@@ -172,7 +174,7 @@
     }
 
     function updateButtons() {
-        el.btnStart.textContent = running ? 'Pause' : 'Start';
+        el.btnStart.querySelector('.btn-label').textContent = running ? 'Pause' : 'Start';
         el.btnStart.classList.toggle('running', running);
         document.body.classList.toggle('running', running);
         el.inH.disabled = el.inMin.disabled = el.inSec.disabled = running;
@@ -293,7 +295,7 @@
             if (activeFilter !== 'all') activeFilter = 'all';
             el.btnFilter.style.display = 'none';
             el.btnFilter.classList.remove('open');
-            el.logFilter.classList.remove('open');
+            el.logFilterRow.classList.remove('open');
             return;
         }
         el.btnFilter.style.display = '';
@@ -346,18 +348,54 @@
 
     function openFilter() {
         if (el.btnFilter.style.display === 'none') return;
-        el.logFilter.classList.add('open');
+        el.logFilterRow.classList.add('open');
         el.btnFilter.classList.add('open');
     }
 
     function closeFilter() {
-        el.logFilter.classList.remove('open');
+        el.logFilterRow.classList.remove('open');
         el.btnFilter.classList.remove('open');
     }
 
     function toggleFilter() {
-        if (el.logFilter.classList.contains('open')) closeFilter();
+        if (el.logFilterRow.classList.contains('open')) closeFilter();
         else openFilter();
+    }
+
+    function startEditName(container, item) {
+        if (container.querySelector('input')) return;
+
+        const input = document.createElement('input');
+        input.className = 'log-name-input';
+        input.type = 'text';
+        input.maxLength = 80;
+        input.value = item.name || '';
+        input.setAttribute('aria-label', 'Edit session name');
+
+        container.textContent = '';
+        container.appendChild(input);
+        container.classList.add('editing');
+        input.focus();
+        input.select();
+
+        let done = false;
+        const finish = (save) => {
+            if (done) return;
+            done = true;
+            container.classList.remove('editing');
+            const val = input.value.trim();
+            if (save) {
+                item.name = val;
+                saveHistory();
+            }
+            container.textContent = (save ? val : item.name) || 'Untitled';
+        };
+
+        input.addEventListener('blur', () => finish(true));
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+            else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+        });
     }
 
     function renderHistory() {
@@ -447,7 +485,7 @@
         saveHistory();
         renderHistory();
         reset();
-        el.task.focus();
+        //el.task.focus();
         toast('Saved · ' + formatShort(ms));
     }
 
@@ -549,6 +587,16 @@
     el.btnReset.addEventListener('click', reset);
     el.btnSave.addEventListener('click', saveSession);
 
+    el.btnTaskClear.addEventListener('click', () => {
+        el.task.value = '';
+        el.task.focus();
+        saveState();
+    });
+
+    [el.btnStart, el.btnReset, el.btnSave, el.btnTaskClear, el.btnClear].forEach(btn => {
+        btn.addEventListener('mousedown', (e) => e.preventDefault());
+    });
+
     el.btnToggle.addEventListener('click', () => {
         historyExpanded = !historyExpanded;
         renderHistory();
@@ -588,7 +636,7 @@
 
     el.setup.querySelectorAll('.step').forEach(bindStep);
 
-    el.presets.addEventListener('click', e => {
+    el.presets.addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-sec]');
         if (!btn) return;
         setPreset(parseInt(btn.dataset.sec, 10));
@@ -600,31 +648,34 @@
     });
 
     document.addEventListener('click', (e) => {
-        if (!el.logFilter.classList.contains('open')) return;
-        if (el.logFilter.contains(e.target)) return;
-        if (el.btnFilter.contains(e.target)) return;
+        if (!el.logFilterRow.classList.contains('open')) return;
+        if (el.logFilterRow.contains(e.target)) return;
         closeFilter();
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Escape') return;
-        if (!el.logFilter.classList.contains('open')) return;
         const tag = (e.target.tagName || '').toLowerCase();
-        if (tag === 'input' || tag === 'textarea') return;
-        closeFilter();
-    });
+        const inInput = tag === 'input' || tag === 'textarea';
 
+        if (e.key === 'Escape') {
+            if (!inInput && el.logFilterRow.classList.contains('open')) closeFilter();
+            return;
+        }
 
-    document.addEventListener('keydown', e => {
-        const tag = (e.target.tagName || '').toLowerCase();
-        if (tag === 'input' || tag === 'textarea') {
+        if (inInput) {
             if (e.key === 'Enter') e.target.blur();
             return;
         }
+
+        const active = document.activeElement;
+        if (active && active.tagName === 'BUTTON') {
+            active.blur();
+        }
+
         if (e.code === 'Space') { e.preventDefault(); toggle(); return; }
         const k = e.key.toLowerCase();
-        if (k === 'r') { e.preventDefault(); reset(); }
-        if (k === 's') { e.preventDefault(); saveSession(); }
+        if (k === 'r' || k === 'k') { e.preventDefault(); reset(); }
+        if (k === 's' || k === 'ы') { e.preventDefault(); saveSession(); }
     });
 
     document.addEventListener('visibilitychange', () => {
